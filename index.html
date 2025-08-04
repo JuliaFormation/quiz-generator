@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Generator avec Import CSV</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .import-section, .share-section {
+            background-color: #fff;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .file-input-wrapper {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin: 10px;
+        }
+
+        .file-input-wrapper:hover {
+            background-color: #2980b9;
+        }
+
+
+
+        .question {
+            background-color: #fff;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .options {
+            margin-top: 15px;
+        }
+
+        .option {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .option:hover {
+            background-color: #f0f0f5;
+        }
+
+        .option input {
+            margin-right: 10px;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        #results {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        .correct {
+            color: green;
+            font-weight: bold;
+        }
+
+        .incorrect {
+            color: red;
+            text-decoration: line-through;
+            font-weight: bold;
+        }
+
+        .neutral {
+            text-decoration: line-through;
+            color: #7f8c8d;
+        }
+
+        .error {
+            color: red;
+            background-color: #ffe6e6;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: green;
+            background-color: #e6ffe6;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .info {
+            color: #2c3e50;
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        #quiz-section {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Générateur de Quiz avec Import CSV</h1>
+    
+    <div class="import-section" id="import-section">
+        <h2>Importer un fichier CSV</h2>
+        <div class="info">
+            <strong>Format CSV attendu :</strong><br>
+            Question;Réponse A;Réponse B;Réponse C;Réponse D;Bonne réponse<br>
+            <em>Les colonnes vides sont acceptées. La "Bonne réponse" doit correspond exactement à l'une des réponses proposées.</em>
+        </div>
+        <div class="file-input-wrapper" onclick="document.getElementById('csv-file').click()">
+            <input type="file" id="csv-file" accept=".csv" style="display: none;" />
+            📁 Choisir un fichier CSV
+        </div>
+        <div id="import-status"></div>
+        
+        <h3>Ou utiliser le quiz d'exemple</h3>
+        <button id="load-example">Charger l'exemple</button>
+    </div>
+
+    <div class="share-section" id="share-section" style="display: none;">
+        <h2>Partager le quiz</h2>
+        <div class="info">
+            <strong>🎯 Votre quiz est prêt à être partagé !</strong><br>
+            Copiez le lien ci-dessous et partagez-le avec vos utilisateurs :
+        </div>
+        <div style="margin: 15px 0;">
+            <input type="text" id="share-link" readonly style="width: 70%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+            <button id="copy-link" style="margin-left: 10px;">📋 Copier</button>
+        </div>
+        <div class="info" style="background-color: #e8f5e8; border: 1px solid #4caf50; color: #2e7d32;">
+            <strong>✅ Fonctionnement :</strong> Les personnes qui cliqueront sur ce lien verront directement le quiz à faire, sans interface de création.
+        </div>
+        <div style="margin-top: 15px;">
+            <button id="test-quiz">🎯 Tester le quiz</button>
+            <button id="new-quiz">📝 Créer un nouveau quiz</button>
+        </div>
+    </div>
+
+    <div id="quiz-section">
+        <div id="quiz-container"></div>
+        <div id="navigation">
+            <button id="prev-btn" disabled>Question précédente</button>
+            <button id="next-btn">Question suivante</button>
+        </div>
+        <div id="submit-container" style="display: none;">
+            <button id="submit-btn">Terminer le quiz</button>
+        </div>
+        <div id="results"></div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button id="restart-btn" style="display: none;">Recommencer</button>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let userAnswers = [];
+        let isSharedMode = false;
+
+        // Vérifier si c'est un quiz partagé
+        function checkSharedMode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const encodedQuestions = urlParams.get('q');
+            
+            if (encodedQuestions) {
+                try {
+                    // Décoder en UTF-8 pour supporter les caractères accentués
+                    const decodedData = decodeURIComponent(escape(atob(encodedQuestions)));
+                    questions = JSON.parse(decodedData);
+                    isSharedMode = true;
+                    
+                    // Masquer l'interface d'import et afficher directement le quiz
+                    document.getElementById('import-section').style.display = 'none';
+                    document.getElementById('share-section').style.display = 'none';
+                    loadQuiz();
+                    return true;
+                } catch (error) {
+                    console.error('Erreur lors du décodage du quiz partagé:', error);
+                    showStatus('Erreur: Lien de quiz invalide', 'error');
+                }
+            }
+            return false;
+        }
+
+        // Générer un lien de partage
+        function generateShareLink() {
+            try {
+                // Encoder en UTF-8 puis en Base64 pour supporter les caractères accentués
+                const jsonString = JSON.stringify(questions);
+                console.log('Questions à encoder:', questions.length); // Debug
+                const encodedQuestions = btoa(unescape(encodeURIComponent(jsonString)));
+                console.log('Données encodées (longueur):', encodedQuestions.length); // Debug
+                
+                // Créer le lien de partage
+                let shareLink;
+                const currentLocation = window.location.href;
+                
+                if (currentLocation.startsWith('about:') || currentLocation.includes('artifacts') || currentLocation.includes('claude.ai')) {
+                    // Environnement d'artifact - créer un lien d'exemple
+                    shareLink = `https://votre-site.netlify.app?q=${encodedQuestions}`;
+                } else {
+                    // Environnement normal (site web réel) - utiliser l'URL actuelle
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    shareLink = `${baseUrl}?q=${encodedQuestions}`;
+                }
+                
+                console.log('URL actuelle:', currentLocation); // Debug
+                console.log('Lien final:', shareLink); // Debug
+                return shareLink;
+            } catch (error) {
+                console.error('Erreur lors de la génération du lien:', error);
+                return null;
+            }
+        }
+
+        function resetQuiz() {
+            currentQuestionIndex = 0;
+            userAnswers = Array(questions.length).fill(null);
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('restart-btn').style.display = 'none';
+            document.getElementById('navigation').style.display = 'block';
+            document.getElementById('prev-btn').disabled = true;
+            document.getElementById('next-btn').disabled = false;
+        }
+
+        function parseCSVToQuestions(csvData) {
+            const parsedQuestions = [];
+            
+            csvData.forEach((row, index) => {
+                // Ignorer les lignes vides
+                if (!row.Question || row.Question.trim() === '') {
+                    return;
+                }
+
+                const question = {
+                    "Question": row.Question.trim(),
+                    "Type": "single"
+                };
+
+                // Ajouter les options disponibles
+                const options = [];
+                ['Réponse A', 'Réponse B', 'Réponse C', 'Réponse D'].forEach((key, optIndex) => {
+                    if (row[key] && row[key].trim() !== '') {
+                        question[`Option ${optIndex + 1}`] = row[key].trim();
+                        options.push(row[key].trim());
+                    }
+                });
+
+                // Vérifier qu'il y a au moins 2 options
+                if (options.length < 2) {
+                    throw new Error(`Question ${index + 1}: Au moins 2 réponses sont nécessaires`);
+                }
+
+                // Définir la bonne réponse
+                if (!row['Bonne réponse'] || row['Bonne réponse'].trim() === '') {
+                    throw new Error(`Question ${index + 1}: La bonne réponse est manquante`);
+                }
+
+                const correctAnswer = row['Bonne réponse'].trim();
+                if (!options.includes(correctAnswer)) {
+                    throw new Error(`Question ${index + 1}: La bonne réponse "${correctAnswer}" ne correspond à aucune des options proposées`);
+                }
+
+                question.Answer = correctAnswer;
+                parsedQuestions.push(question);
+            });
+
+            if (parsedQuestions.length === 0) {
+                throw new Error('Aucune question valide trouvée dans le fichier CSV');
+            }
+
+            return parsedQuestions;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('import-status');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function loadQuiz() {
+            resetQuiz();
+            document.getElementById('quiz-section').style.display = 'block';
+            
+            if (!isSharedMode) {
+                // Afficher la section de partage uniquement en mode créateur
+                document.getElementById('import-section').style.display = 'none';
+                document.getElementById('share-section').style.display = 'block';
+                
+                // Générer le lien de partage
+                const shareLink = generateShareLink();
+                console.log('Lien généré:', shareLink); // Debug
+                if (shareLink) {
+                    document.getElementById('share-link').value = shareLink;
+                    showStatus(`Quiz chargé avec succès ! ${questions.length} questions disponibles.`, 'success');
+                } else {
+                    showStatus('Erreur lors de la génération du lien de partage', 'error');
+                }
+            }
+            
+            displayQuestion(currentQuestionIndex);
+        }
+
+        document.getElementById('csv-file').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showStatus('Chargement du fichier...', 'info');
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                delimiter: ';',
+                complete: function(results) {
+                    try {
+                        if (results.errors.length > 0) {
+                            throw new Error('Erreur lors de la lecture du fichier CSV: ' + results.errors[0].message);
+                        }
+
+                        questions = parseCSVToQuestions(results.data);
+                        loadQuiz();
+                    } catch (error) {
+                        showStatus(`Erreur: ${error.message}`, 'error');
+                        console.error('Erreur parsing CSV:', error);
+                    }
+                },
+                error: function(error) {
+                    showStatus(`Erreur lors de la lecture du fichier: ${error.message}`, 'error');
+                }
+            });
+        });
+
+        document.getElementById('load-example').addEventListener('click', function() {
+            // Questions d'exemple basées sur votre CSV
+            questions = [
+                {
+                    "Question": "Elle… son camp.",
+                    "Option 1": "choisit",
+                    "Option 2": "choisi",
+                    "Option 3": "choisie",
+                    "Answer": "choisie",
+                    "Type": "single"
+                },
+                {
+                    "Question": "Les témoins… le registre.",
+                    "Option 1": "signes",
+                    "Option 2": "signent",
+                    "Answer": "signent",
+                    "Type": "single"
+                },
+                {
+                    "Question": "Je… bien le problème.",
+                    "Option 1": "comprend",
+                    "Option 2": "comprends",
+                    "Answer": "comprends",
+                    "Type": "single"
+                },
+                {
+                    "Question": "Ce produit… beaucoup.",
+                    "Option 1": "pollut",
+                    "Option 2": "pollue",
+                    "Answer": "pollut",
+                    "Type": "single"
+                },
+                {
+                    "Question": "Je te… ses coordonées.",
+                    "Option 1": "donne",
+                    "Option 2": "donnes",
+                    "Answer": "donnes",
+                    "Type": "single"
+                }
+            ];
+            loadQuiz();
+        });
+
+        function displayQuestion(index) {
+            const container = document.getElementById('quiz-container');
+            container.innerHTML = '';
+
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'question';
+            questionDiv.innerHTML = `<h2>Question ${index + 1} / ${questions.length}: ${questions[index]['Question']}</h2>`;
+
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options';
+
+            // Afficher les options disponibles
+            for (let i = 1; i <= 4; i++) {
+                if (questions[index]['Option ' + i]) {
+                    const option = document.createElement('div');
+                    option.className = 'option';
+                    option.innerHTML = `<input type="${questions[index]['Type'] === 'multiple' ? 'checkbox' : 'radio'}"
+                    name="question${index}" value="${questions[index]['Option ' + i]}"
+                    ${userAnswers[index] && userAnswers[index].includes && userAnswers[index].includes(questions[index]['Option ' + i]) ? 'checked' : ''}
+                    ${userAnswers[index] === questions[index]['Option ' + i] ? 'checked' : ''}
+                    onclick="updateAnswer(${index}, '${questions[index]['Option ' + i]}')">
+                    ${questions[index]['Option ' + i]}`;
+                    optionsDiv.appendChild(option);
+                }
+            }
+
+            questionDiv.appendChild(optionsDiv);
+            container.appendChild(questionDiv);
+
+            // Afficher ou masquer le bouton de soumission
+            const submitContainer = document.getElementById('submit-container');
+            if (index === questions.length - 1) {
+                submitContainer.style.display = 'block';
+            } else {
+                submitContainer.style.display = 'none';
+            }
+        }
+
+        function updateAnswer(questionIndex, answer) {
+            if (questions[questionIndex]['Type'] === 'multiple') {
+                if (!userAnswers[questionIndex]) {
+                    userAnswers[questionIndex] = [];
+                }
+                const answerIndex = userAnswers[questionIndex].indexOf(answer);
+                if (answerIndex === -1) {
+                    userAnswers[questionIndex].push(answer);
+                } else {
+                    userAnswers[questionIndex].splice(answerIndex, 1);
+                }
+            } else {
+                userAnswers[questionIndex] = answer;
+            }
+        }
+
+        function calculateScore() {
+            let score = 0;
+            questions.forEach((q, index) => {
+                if (Array.isArray(userAnswers[index])) {
+                    const correctAnswers = q['Answer'].split(' | ');
+                    if (userAnswers[index].sort().join(',') === correctAnswers.sort().join(',')) {
+                        score += 1;
+                    }
+                } else if (userAnswers[index] === q['Answer']) {
+                    score += 1;
+                }
+            });
+            return score;
+        }
+
+        function displayResults() {
+            const score = calculateScore();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<h2>Votre score : ${score} / ${questions.length}</h2>`;
+
+            // Message personnalisé selon le score
+            let message = '';
+            const percentage = (score / questions.length) * 100;
+            if (percentage === 100) {
+                message = 'Excellent ! Vous avez tout juste !';
+            } else if (percentage >= 80) {
+                message = 'Très bien ! Vous maîtrisez bien le sujet.';
+            } else if (percentage >= 60) {
+                message = 'Bien ! Il y a encore quelques points à revoir.';
+            } else if (percentage >= 40) {
+                message = 'Passable. Il serait bon de réviser.';
+            } else {
+                message = 'Il faut retravailler ! Courage !';
+            }
+            resultsDiv.innerHTML += `<p><strong>${message}</strong></p>`;
+
+            // Afficher toutes les questions avec les réponses
+            questions.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `<h3>Question ${index + 1}: ${q['Question']}</h3>`;
+
+                const optionsDiv = document.createElement('div');
+                optionsDiv.className = 'options';
+
+                const correctAnswers = q['Answer'].split(' | ');
+                for (let i = 1; i <= 4; i++) {
+                    if (q['Option ' + i]) {
+                        const option = document.createElement('div');
+                        option.className = 'option';
+
+                        if (correctAnswers.includes(q['Option ' + i])) {
+                            option.classList.add('correct');
+                        } else if (userAnswers[index] &&
+                                 (Array.isArray(userAnswers[index]) ? userAnswers[index].includes(q['Option ' + i]) : userAnswers[index] === q['Option ' + i])) {
+                            option.classList.add('incorrect');
+                        } else {
+                            option.classList.add('neutral');
+                        }
+
+                        option.innerHTML = q['Option ' + i];
+                        optionsDiv.appendChild(option);
+                    }
+                }
+
+                questionDiv.appendChild(optionsDiv);
+                resultsDiv.appendChild(questionDiv);
+            });
+
+            // Masquer la navigation et afficher le bouton recommencer
+            document.getElementById('navigation').style.display = 'none';
+            document.getElementById('submit-container').style.display = 'none';
+            document.getElementById('restart-btn').style.display = 'inline-block';
+        }
+
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                displayQuestion(currentQuestionIndex);
+                document.getElementById('next-btn').disabled = false;
+                if (currentQuestionIndex === 0) {
+                    document.getElementById('prev-btn').disabled = true;
+                }
+            }
+        }); 
+
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentQuestionIndex < questions.length - 1) {
+                currentQuestionIndex++;
+                displayQuestion(currentQuestionIndex);
+                document.getElementById('prev-btn').disabled = false;
+                if (currentQuestionIndex === questions.length - 1) {
+                    document.getElementById('next-btn').disabled = true;
+                }
+            }
+        });
+
+        document.getElementById('submit-btn').addEventListener('click', displayResults);
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            resetQuiz();
+            displayQuestion(currentQuestionIndex);
+        });
+
+        // Nouveaux événements pour le partage
+        document.getElementById('copy-link').addEventListener('click', () => {
+            const linkInput = document.getElementById('share-link');
+            linkInput.select();
+            linkInput.setSelectionRange(0, 99999); // Pour mobile
+            
+            try {
+                document.execCommand('copy');
+                showStatus('Lien copié dans le presse-papiers !', 'success');
+            } catch (err) {
+                // Fallback pour les navigateurs qui ne supportent pas execCommand
+                navigator.clipboard.writeText(linkInput.value).then(() => {
+                    showStatus('Lien copié dans le presse-papiers !', 'success');
+                }).catch(() => {
+                    showStatus('Impossible de copier le lien. Veuillez le sélectionner manuellement.', 'error');
+                });
+            }
+        });
+
+        document.getElementById('test-quiz').addEventListener('click', () => {
+            document.getElementById('share-section').style.display = 'none';
+            resetQuiz();
+            displayQuestion(currentQuestionIndex);
+        });
+
+        document.getElementById('new-quiz').addEventListener('click', () => {
+            // Revenir au mode création
+            isSharedMode = false;
+            document.getElementById('quiz-section').style.display = 'none';
+            document.getElementById('share-section').style.display = 'none';
+            document.getElementById('import-section').style.display = 'block';
+            document.getElementById('import-status').innerHTML = '';
+            questions = [];
+        });
+
+        // Initialiser l'application
+        window.addEventListener('load', () => {
+            if (!checkSharedMode()) {
+                // Mode normal - afficher l'interface d'import
+                document.getElementById('import-section').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
